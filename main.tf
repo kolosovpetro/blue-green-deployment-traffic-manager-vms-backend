@@ -18,7 +18,7 @@ locals {
 
 resource "azurerm_resource_group" "public" {
   location = var.location
-  name     = "rg-template-${var.prefix}"
+  name     = "rg-trafficmgr-${var.prefix}"
   tags     = var.tags
 }
 
