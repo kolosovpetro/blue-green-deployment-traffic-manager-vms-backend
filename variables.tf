@@ -1,63 +1,41 @@
-variable "resource_group_name" {
-  type        = string
-  description = "Resource group name"
-}
-
-variable "resource_group_location" {
-  type        = string
-  description = "Resource group location"
+variable "location" {
+  type    = string
+  default = "northeurope"
 }
 
 variable "prefix" {
-  type        = string
-  description = "Prefix for all resources"
+  type    = string
+  default = "d01"
 }
 
-variable "os_profile_admin_public_key_path" {
-  type        = string
-  description = "Path to public key for admin user"
-}
-variable "os_profile_admin_username" {
-  type        = string
-  description = "Admin username"
-}
-
-variable "storage_image_reference_offer" {
-  type        = string
-  description = "Offer of the image used to create the virtual machine"
+variable "tags" {
+  type        = map(string)
+  description = "Tags for all resources"
+  default = {
+    Environment  = "DEV"
+    Owner        = "Terraform"
+    Autoshutdown = "OFF"
+  }
 }
 
-variable "storage_image_reference_publisher" {
+#################################################################################################################
+# RBAC VARIABLES
+#################################################################################################################
+
+variable "azure_portal_client_id" {
   type        = string
-  description = "Publisher of the image used to create the virtual machine"
+  description = "Azure Portal client ID. For RBAC policies."
+  default     = "89ab0b10-1214-4c8f-878c-18c3544bb547"
 }
 
-variable "storage_image_reference_sku" {
+variable "tenant_id" {
   type        = string
-  description = "SKU of the image used to create the virtual machine"
+  description = "Azure Tenant ID for authentication."
+  default     = "b40a105f-0643-4922-8e60-10fc1abf9c4b"
 }
 
-variable "storage_image_reference_version" {
+variable "client_id" {
   type        = string
-  description = "Version of the image used to create the virtual machine"
-}
-
-variable "storage_os_disk_caching" {
-  type        = string
-  description = "Caching of the OS disk"
-}
-
-variable "storage_os_disk_create_option" {
-  type        = string
-  description = "Create option of the OS disk"
-}
-
-variable "storage_os_disk_managed_disk_type" {
-  type        = string
-  description = "Managed disk type of the OS disk"
-}
-
-variable "vm_size" {
-  type        = string
-  description = "Size of the virtual machine"
+  description = "Azure Client ID (Service Principal) used for authentication."
+  default     = "ab0a5dc1-ee52-4574-96e0-469f237928a6"
 }

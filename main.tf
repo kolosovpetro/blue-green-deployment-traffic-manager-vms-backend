@@ -1,79 +1,96 @@
 data "azurerm_client_config" "current" {}
+data "azurerm_subscription" "current" {}
+
+#################################################################################################################
+# LOCALS
+#################################################################################################################
+
+locals {
+  vnet_cidr           = ["10.10.0.0/24"]
+  vm_subnet_cidr      = ["10.10.0.0/26"]
+  fw_subnet_cidr      = ["10.10.0.64/26"]
+  bastion_subnet_cidr = ["10.10.0.128/26"]
+}
+
+#################################################################################################################
+# RESOURCE GROUP
+#################################################################################################################
 
 resource "azurerm_resource_group" "public" {
-  location = var.resource_group_location
-  name     = local.resource_group_name
+  location = var.location
+  name     = "rg-trafficmgr-${var.prefix}"
+  tags     = var.tags
 }
 
-module "network" {
-  source                  = "./modules/network"
-  resource_group_location = azurerm_resource_group.public.location
-  resource_group_name     = azurerm_resource_group.public.name
-  subnet_name             = local.subnet_name
-  vnet_name               = local.vnet_name
+#################################################################################################################
+# VNET AND SUBNET
+#################################################################################################################
+
+resource "azurerm_virtual_network" "public" {
+  name                = "vnet-${var.prefix}"
+  address_space       = local.vnet_cidr
+  location            = azurerm_resource_group.public.location
+  resource_group_name = azurerm_resource_group.public.name
 }
 
-module "green_slot" {
-  source                            = "./modules/ubuntu-vm-public-key-auth"
-  domain_name_label                 = "greenslot${var.prefix}"
-  ip_configuration_name             = "green-slot-ip-${var.prefix}"
-  network_interface_name            = "green-slot-nic-${var.prefix}"
-  nsg_name                          = "green-slot-nsg-${var.prefix}"
-  os_profile_admin_public_key_path  = var.os_profile_admin_public_key_path
-  os_profile_admin_username         = var.os_profile_admin_username
-  os_profile_computer_name          = "green-slot-vm-${var.prefix}"
-  public_ip_name                    = "green-slot-ip-${var.prefix}"
-  resource_group_location           = azurerm_resource_group.public.location
-  resource_group_name               = azurerm_resource_group.public.name
-  storage_image_reference_offer     = var.storage_image_reference_offer
-  storage_image_reference_publisher = var.storage_image_reference_publisher
-  storage_image_reference_sku       = var.storage_image_reference_sku
-  storage_image_reference_version   = var.storage_image_reference_version
-  storage_os_disk_caching           = var.storage_os_disk_caching
-  storage_os_disk_create_option     = var.storage_os_disk_create_option
-  storage_os_disk_managed_disk_type = var.storage_os_disk_managed_disk_type
-  storage_os_disk_name              = "green-slot-os-disk-${var.prefix}"
-  subnet_id                         = module.network.subnet_id
-  subnet_name                       = module.network.subnet_name
-  vm_name                           = "green-slot-vm-${var.prefix}"
-  vm_size                           = var.vm_size
-  vnet_name                         = module.network.vnet_name
-
-  depends_on = [
-    module.network
-  ]
+resource "azurerm_subnet" "vm" {
+  name                 = "snet-vm-${var.prefix}"
+  resource_group_name  = azurerm_resource_group.public.name
+  virtual_network_name = azurerm_virtual_network.public.name
+  address_prefixes     = local.vm_subnet_cidr
 }
+
+#################################################################################################################
+# BLUE SLOT
+#################################################################################################################
 
 module "blue_slot" {
-  source                            = "./modules/ubuntu-vm-public-key-auth"
-  domain_name_label                 = "blueslot${var.prefix}"
-  ip_configuration_name             = "blue-slot-ip-${var.prefix}"
-  network_interface_name            = "blue-slot-nic-${var.prefix}"
-  nsg_name                          = "blue-slot-nsg-${var.prefix}"
-  os_profile_admin_public_key_path  = var.os_profile_admin_public_key_path
-  os_profile_admin_username         = var.os_profile_admin_username
-  os_profile_computer_name          = "blue-slot-vm-${var.prefix}"
-  public_ip_name                    = "blue-slot-ip-${var.prefix}"
-  resource_group_location           = azurerm_resource_group.public.location
-  resource_group_name               = azurerm_resource_group.public.name
-  storage_image_reference_offer     = var.storage_image_reference_offer
-  storage_image_reference_publisher = var.storage_image_reference_publisher
-  storage_image_reference_sku       = var.storage_image_reference_sku
-  storage_image_reference_version   = var.storage_image_reference_version
-  storage_os_disk_caching           = var.storage_os_disk_caching
-  storage_os_disk_create_option     = var.storage_os_disk_create_option
-  storage_os_disk_managed_disk_type = var.storage_os_disk_managed_disk_type
-  storage_os_disk_name              = "blue-slot-os-disk-${var.prefix}"
-  subnet_id                         = module.network.subnet_id
-  subnet_name                       = module.network.subnet_name
-  vm_name                           = "blue-slot-vm-${var.prefix}"
-  vm_size                           = var.vm_size
-  vnet_name                         = module.network.vnet_name
+  source                           = "./modules/ubuntu-vm-key-auth-custom-image"
+  custom_image_resource_group_name = "rg-packer-images-linux"
+  custom_image_sku                 = "ubuntu2204-v1"
+  ip_configuration_name            = "ipc-blue-slot-${var.prefix}"
+  network_interface_name           = "nic-blue-slot-${var.prefix}"
+  os_profile_admin_public_key      = file("${path.root}/id_ed25519.pub")
+  os_profile_admin_username        = "razumovsky_r"
+  os_profile_computer_name         = "vm-blue-slot-${var.prefix}"
+  public_ip_name                   = "pip-blue-slot-${var.prefix}"
+  resource_group_location          = azurerm_resource_group.public.location
+  resource_group_name              = azurerm_resource_group.public.name
+  storage_os_disk_name             = "osdisk-blue-slot-${var.prefix}"
+  subnet_id                        = azurerm_subnet.vm.id
+  vm_name                          = "vm-blue-slot-${var.prefix}"
+  network_security_group_id        = azurerm_network_security_group.public.id
 
-  depends_on = [
-    module.network
-  ]
+  domain_name_label = "blue-slot-fqdn-${var.prefix}"
 }
+
+#################################################################################################################
+# GREEN SLOT
+#################################################################################################################
+
+module "green_slot" {
+  source                           = "./modules/ubuntu-vm-key-auth-custom-image"
+  custom_image_resource_group_name = "rg-packer-images-linux"
+  custom_image_sku                 = "ubuntu2204-v1"
+  ip_configuration_name            = "ipc-green-slot-${var.prefix}"
+  network_interface_name           = "nic-green-slot-${var.prefix}"
+  os_profile_admin_public_key      = file("${path.root}/id_ed25519.pub")
+  os_profile_admin_username        = "razumovsky_r"
+  os_profile_computer_name         = "vm-green-slot-${var.prefix}"
+  public_ip_name                   = "pip-green-slot-${var.prefix}"
+  resource_group_location          = azurerm_resource_group.public.location
+  resource_group_name              = azurerm_resource_group.public.name
+  storage_os_disk_name             = "osdisk-green-slot-${var.prefix}"
+  subnet_id                        = azurerm_subnet.vm.id
+  vm_name                          = "vm-green-slot-${var.prefix}"
+  network_security_group_id        = azurerm_network_security_group.public.id
+
+  domain_name_label = "green-slot-fqdn-${var.prefix}"
+}
+
+#################################################################################################################
+# TRAFFIC MANAGER PROFILE
+#################################################################################################################
 
 module "traffic_manager_profile" {
   source              = "./modules/traffic-manager-profile"
@@ -82,28 +99,36 @@ module "traffic_manager_profile" {
   resource_group_name = azurerm_resource_group.public.name
 }
 
-module "traffic_manager_endpoint_green" {
-  source                                      = "./modules/traffic-manager-endpoint"
-  traffic_manager_endpoint_name               = "green-endpoint-${var.prefix}"
-  traffic_manager_endpoint_target_resource_id = module.green_slot.public_ip_id
-  traffic_manager_endpoint_weight             = 500
-  traffic_manager_profile_id                  = module.traffic_manager_profile.id
-
-  depends_on = [
-    module.traffic_manager_profile,
-    module.green_slot
-  ]
-}
+#################################################################################################################
+# BLUE ENDPOINT
+#################################################################################################################
 
 module "traffic_manager_endpoint_blue" {
   source                                      = "./modules/traffic-manager-endpoint"
   traffic_manager_endpoint_name               = "blue-endpoint-${var.prefix}"
   traffic_manager_endpoint_target_resource_id = module.blue_slot.public_ip_id
-  traffic_manager_endpoint_weight             = 500
   traffic_manager_profile_id                  = module.traffic_manager_profile.id
+  priority                                    = 1
 
   depends_on = [
     module.traffic_manager_profile,
     module.blue_slot
+  ]
+}
+
+#################################################################################################################
+# GREEN ENDPOINT
+#################################################################################################################
+
+module "traffic_manager_endpoint_green" {
+  source                                      = "./modules/traffic-manager-endpoint"
+  traffic_manager_endpoint_name               = "green-endpoint-${var.prefix}"
+  traffic_manager_endpoint_target_resource_id = module.green_slot.public_ip_id
+  traffic_manager_profile_id                  = module.traffic_manager_profile.id
+  priority                                    = 2
+
+  depends_on = [
+    module.traffic_manager_profile,
+    module.green_slot
   ]
 }

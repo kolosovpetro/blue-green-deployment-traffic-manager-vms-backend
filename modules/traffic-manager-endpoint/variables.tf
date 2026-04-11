@@ -8,7 +8,7 @@ variable "traffic_manager_profile_id" {
   description = "The ID of the Traffic Manager profile."
 }
 
-variable "traffic_manager_endpoint_weight" {
+variable "priority" {
   type        = number
   description = "The weight of this endpoint when using the 'Weighted' traffic routing method. Possible values are from 1 to 1000."
 }

@@ -19,10 +19,9 @@ resource "azurerm_network_interface" "public" {
   }
 }
 
-resource "azurerm_network_security_group" "public" {
-  name                = var.nsg_name
-  location            = var.resource_group_location
-  resource_group_name = var.resource_group_name
+data "azurerm_image" "search" {
+  name                = var.custom_image_sku
+  resource_group_name = var.custom_image_resource_group_name
 }
 
 resource "azurerm_virtual_machine" "public" {
@@ -34,11 +33,12 @@ resource "azurerm_virtual_machine" "public" {
 
   delete_os_disk_on_termination = true
 
+  identity {
+    type = "SystemAssigned"
+  }
+
   storage_image_reference {
-    publisher = var.storage_image_reference_publisher
-    offer     = var.storage_image_reference_offer
-    sku       = var.storage_image_reference_sku
-    version   = var.storage_image_reference_version
+    id = data.azurerm_image.search.id
   }
 
   storage_os_disk {
@@ -53,7 +53,7 @@ resource "azurerm_virtual_machine" "public" {
 
     ssh_keys {
       path     = "/home/${var.os_profile_admin_username}/.ssh/authorized_keys"
-      key_data = file(var.os_profile_admin_public_key_path)
+      key_data = var.os_profile_admin_public_key
     }
   }
 
@@ -61,4 +61,17 @@ resource "azurerm_virtual_machine" "public" {
     computer_name  = var.os_profile_computer_name
     admin_username = var.os_profile_admin_username
   }
+
+  depends_on = [
+    azurerm_network_interface_security_group_association.nic_association
+  ]
+}
+
+resource "azurerm_network_interface_security_group_association" "nic_association" {
+  network_interface_id      = azurerm_network_interface.public.id
+  network_security_group_id = var.network_security_group_id
+
+  depends_on = [
+    azurerm_network_interface.public
+  ]
 }

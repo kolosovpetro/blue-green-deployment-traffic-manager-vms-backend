@@ -1,7 +1,7 @@
 resource "azurerm_traffic_manager_profile" "traffic_manager" {
   name                   = var.profile_name
   resource_group_name    = var.resource_group_name
-  traffic_routing_method = "Weighted"
+  traffic_routing_method = "Priority"
 
   dns_config {
     relative_name = var.relative_name
