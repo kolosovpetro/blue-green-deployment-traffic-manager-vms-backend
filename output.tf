@@ -42,4 +42,8 @@ output "scp_command_green" {
   value = "scp ./html/green.html razumovsky_r@${module.green_slot.public_ip}:/tmp/green.html"
 }
 
+output "traffic_manager_http" {
+  value = "http://${module.traffic_manager_profile.traffic_manager_name}.trafficmanager.net"
+}
+
 
