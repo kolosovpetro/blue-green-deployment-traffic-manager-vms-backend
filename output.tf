@@ -43,7 +43,7 @@ output "scp_command_green" {
 }
 
 output "traffic_manager_http" {
-  value = "http://${module.traffic_manager_profile.traffic_manager_name}.trafficmanager.net"
+  value = "http://${module.traffic_manager_profile.traffic_manager_relative_name}.trafficmanager.net"
 }
 
 
