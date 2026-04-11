@@ -1,23 +1,148 @@
-# Blue Green deployment using Azure Traffic Manager
+# Blue-Green Deployment using Azure Traffic Manager
 
-## Provision infrastructure
+This repository demonstrates a **Blue-Green deployment strategy** using Azure infrastructure and Azure Traffic Manager for traffic routing.
 
-- terraform init -backend-config="azure.sas.conf" -reconfigure -upgrade
-- terraform plan -out main.tfplan -lock=false
-- terraform apply -lock=false "main.tfplan"
-- .\Deploy-Blue-Page.ps1
-- .\Deploy-Green-Page.ps1
+---
 
-## Swap slots using scripts
+## 🚀 Overview
 
-- .\Switch-To-Blue.ps1
-- .\Switch-To-Green.ps1
+The solution provisions two independent environments:
 
-## Cons and pros
+- **Blue** (current production)
+- **Green** (new version)
 
-## Comments
+Traffic is routed via Azure Traffic Manager, allowing controlled switching between environments.
 
-- Traffic can be **Weighted** or **Priority**
-- **Weighted** is probabilistic (i.e blue 300 / green 700, total 1000)
-- **Priority** gives the highest healthy target machine
-- **Priority**: ascending order to values, for example priority over 3 endpoints: 1,2,3, the 1 gets all traffic if healthy, otherwise 2 gets the traffic etc.
+---
+
+## 🏗️ Provision Infrastructure
+
+Run the following commands:
+
+```bash
+terraform init -backend-config="azure.sas.conf" -reconfigure -upgrade
+terraform plan -out main.tfplan -lock=false
+terraform apply -lock=false "main.tfplan"
+```
+
+Deploy sample applications:
+
+```powershell
+.\Deploy-Blue-Page.ps1
+.\Deploy-Green-Page.ps1
+```
+
+---
+
+## 🔄 Switch Traffic (Blue ↔ Green)
+
+Switch active environment using scripts:
+
+```powershell
+.\Switch-To-Blue.ps1
+.\Switch-To-Green.ps1
+```
+
+These scripts update endpoint priority in Azure Traffic Manager.
+
+---
+
+## ⚙️ Traffic Routing Modes
+
+Azure Traffic Manager supports two routing strategies:
+
+### 🔵 Priority (Blue-Green / Failover)
+
+- Only **one endpoint is active**
+- Lower number = higher priority
+- Example:
+  - Blue = 1 (active)
+  - Green = 2 (standby)
+
+Failover behavior:
+- If priority `1` is healthy → receives all traffic
+- If unhealthy → traffic goes to `2`, then `3`, etc.
+
+✔ Best for:
+- Blue-Green deployments  
+- Instant rollback  
+
+---
+
+### 🟢 Weighted (Canary / Gradual rollout)
+
+- Traffic is **distributed proportionally**
+- Values are **relative**, not fixed (do NOT need to sum to 1000)
+
+Examples:
+
+- 500 / 500 → 50% / 50%  
+- 1000 / 1 → ~99.9% / ~0.1%  
+- 300 / 700 → 30% / 70%  
+
+✔ Best for:
+- Canary releases  
+- Gradual traffic shifting  
+- A/B testing  
+
+---
+
+## ⚖️ Pros and Cons
+
+### ✅ Pros
+
+- Zero-downtime deployments  
+- Easy rollback (especially with Priority mode)  
+- Supports both canary and blue-green strategies  
+- Fully automated via Terraform + CLI/PowerShell  
+
+### ❌ Cons
+
+- DNS-based routing → **not instant** (TTL delay)  
+- Requires Public IPs with DNS names for endpoints  
+- Weighted routing is probabilistic (not exact per request)  
+
+---
+
+## 🧠 Key Notes
+
+- Traffic Manager is **DNS-based**, not a reverse proxy  
+- Clients connect directly to resolved endpoints  
+- Health checks determine endpoint availability  
+- Only one routing method is active at a time:
+  - `Priority` OR `Weighted`
+
+---
+
+## 💡 Recommendations
+
+- Use **Priority** for clean Blue-Green deployments  
+- Use **Weighted** for safe canary rollouts  
+- Combine both in CI/CD:
+  1. Start with Weighted (gradual rollout)
+  2. Finish with full switch (Priority or 100% weight)
+
+---
+
+## 📌 Future Improvements
+
+- Add automated canary progression (1% → 10% → 50% → 100%)  
+- Integrate with Azure DevOps pipelines  
+- Add monitoring/alerts for health probes  
+- Support multi-region failover  
+
+---
+
+## 📝 Comments
+
+- `Weighted` → controls **traffic distribution**
+- `Priority` → controls **failover order**
+- Priority values must be **unique per endpoint**
+- Lower priority number = higher preference
+
+---
+
+## 📎 References
+
+- Azure Traffic Manager documentation  
+- Terraform Azure Provider (`azurerm_traffic_manager_*`)  
